@@ -65,6 +65,24 @@ def test_next_diagnostico_reconoce_fortalezas(proyecto_next: Path):
     assert any("prueba" in t.lower() for t in titulos)
 
 
+def test_documentacion_larga_no_cuenta_como_fichero_grande(crear_proyecto):
+    """Regresion: un README/documento de diseno extenso no es deuda tecnica.
+
+    Detectado analizando un proyecto real cuyo resources/DESIGN-SYSTEM.md de
+    800+ lineas aparecia como "fichero desproporcionadamente grande".
+    """
+    raiz = crear_proyecto(
+        {
+            "package.json": json.dumps({"name": "x", "dependencies": {"react": "^18"}}),
+            "src/App.jsx": "export default () => null\n" * 10,
+            "docs/DESIGN-SYSTEM.md": "# Seccion\ncontenido\n" * 500,
+        }
+    )
+    informe = analyze_directory(raiz)
+    assert not any("DESIGN-SYSTEM" in (f.evidence or "") for f in informe.findings)
+    assert not any("grandes" in f.title.lower() for f in informe.findings)
+
+
 # -------------------------------------------------------------- caso FastAPI
 
 

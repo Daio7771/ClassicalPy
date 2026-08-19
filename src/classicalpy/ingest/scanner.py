@@ -168,6 +168,11 @@ class Scanner:
             if f.is_config:
                 stats.config_files += 1
 
-        code = [f for f in files if not f.is_config and f.lines > 0]
+        # Un README o un documento de diseno largos no son deuda tecnica: son
+        # prosa, no logica que alguien tenga que mantener o testear.
+        code = [
+            f for f in files
+            if not f.is_config and f.lines > 0 and f.language not in {"Markdown", "Texto"}
+        ]
         code.sort(key=lambda f: f.lines, reverse=True)
         stats.largest_files = [(f.path, f.lines) for f in code[:10]]
