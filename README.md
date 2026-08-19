@@ -2,8 +2,6 @@
   <img src="images/logo.png" alt="ClassicalPy" width="420">
 </p>
 
-# ClassicalPy
-
 **Entiende cualquier proyecto web en cinco minutos, no en cinco días.**
 
 ClassicalPy analiza una carpeta local o un repositorio Git y genera un informe de
