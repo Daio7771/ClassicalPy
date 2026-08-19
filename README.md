@@ -192,7 +192,7 @@ def _rule_mi_regla(sig: Signals, modules: list[ModuleNode]) -> list[Finding]:
 ## Desarrollo
 
 ```bash
-pytest              # 30 pruebas sobre proyectos sintéticos
+pytest              # 42 pruebas sobre proyectos sintéticos
 ruff check .
 ```
 

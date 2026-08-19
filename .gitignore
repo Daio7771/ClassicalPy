@@ -11,4 +11,12 @@ dist/
 .mypy_cache/
 .classicalpy-cache/
 .env
+.env.*
+!.env.example
 .DS_Store
+.idea/
+.vscode/
+*.log
+# Salidas que se generan siguiendo los ejemplos del README, no codigo fuente.
+informe.json
+informe.md
