@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/logo.png" alt="ClassicalPy" width="420">
+</p>
+
 # ClassicalPy
 
 **Entiende cualquier proyecto web en cinco minutos, no en cinco días.**
