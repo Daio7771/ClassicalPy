@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClassicalPy — Informe de arquitectura</title>
+  <link rel="stylesheet" href="/estatico/estilos.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🏛️</text></svg>">
+</head>
+<body>
+  <header class="cabecera">
+    <div class="marca">
+      <span class="logo" aria-hidden="true">🏛️</span>
+      <div>
+        <h1>ClassicalPy</h1>
+        <p class="lema">Entiende cualquier proyecto web en cinco minutos, no en cinco días.</p>
+      </div>
+    </div>
+    <button id="tema" class="boton-icono" type="button" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+  </header>
+
+  <main>
+    <form id="formulario" class="panel">
+      <label class="etiqueta" for="fuente">Proyecto a analizar</label>
+      <div class="fila">
+        <input
+          id="fuente"
+          name="fuente"
+          type="text"
+          placeholder="C:\ruta\a\mi-proyecto  ·  https://github.com/usuario/repo"
+          autocomplete="off"
+          spellcheck="false"
+          required>
+        <button id="enviar" class="boton-principal" type="submit">Analizar</button>
+      </div>
+      <p class="ayuda">
+        Acepta una carpeta del disco o la URL de un repositorio Git público.
+        El análisis es estático: nunca se ejecuta el código del proyecto.
+      </p>
+    </form>
+
+    <section id="estado" class="estado oculto" role="status" aria-live="polite"></section>
+
+    <section id="informe" class="informe oculto">
+      <nav class="acciones">
+        <button class="boton-secundario" data-descarga="markdown" type="button">Copiar Markdown</button>
+        <button class="boton-secundario" data-descarga="json" type="button">Copiar JSON</button>
+      </nav>
+
+      <article class="tarjeta destacada">
+        <h2>🎯 Explicación en 5 segundos</h2>
+        <p id="pitch" class="pitch"></p>
+        <dl id="dominio" class="definiciones"></dl>
+      </article>
+
+      <article class="tarjeta">
+        <h2>🏗️ Ficha Técnica y Arquitectura</h2>
+        <div id="arquitectura" class="arquitectura"></div>
+        <div class="tabla-scroll">
+          <table id="tabla-stack">
+            <thead>
+              <tr><th>Tecnología</th><th>Categoría</th><th>Versión</th><th>Rol en este Proyecto</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="metricas" class="metricas"></div>
+      </article>
+
+      <article class="tarjeta">
+        <h2>🔄 Flujo de Trabajo Principal</h2>
+        <ol id="flujo" class="flujo"></ol>
+      </article>
+
+      <article class="tarjeta">
+        <h2>📂 Mapa Conceptual de Módulos</h2>
+        <ul id="modulos" class="modulos"></ul>
+      </article>
+
+      <article class="tarjeta">
+        <h2>💡 Diagnóstico del Código</h2>
+        <div id="diagnostico" class="diagnostico"></div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <span>Análisis estático · sin APIs externas · sin ejecutar el código analizado</span>
+    <a href="/docs">API</a>
+  </footer>
+
+  <script src="/estatico/app.js"></script>
+</body>
+</html>

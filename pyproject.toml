@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "classicalpy"
+version = "0.1.0"
+description = "Analizador estatico de proyectos web: genera un informe de arquitectura legible para perfiles tecnicos y no tecnicos."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "YouRa" }]
+keywords = ["static-analysis", "architecture", "documentation", "codebase", "report"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Documentation",
+]
+
+# El motor de analisis es stdlib pura: sin dependencias, sin red, sin APIs de pago.
+dependencies = []
+
+[project.optional-dependencies]
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+dev = ["pytest>=8.0", "ruff>=0.4"]
+
+[project.scripts]
+classicalpy = "classicalpy.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/classicalpy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tablas de conocimiento: una entrada por linea se lee mejor que envuelta.
+"src/classicalpy/detect/knowledge.py" = ["E501"]
+"src/classicalpy/detect/stack.py" = ["E501"]
+"src/classicalpy/analyze/modules.py" = ["E501"]
+"src/classicalpy/analyze/domain.py" = ["E501"]
+"src/classicalpy/analyze/flow.py" = ["E501"]
+"src/classicalpy/analyze/diagnostics.py" = ["E501"]

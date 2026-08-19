@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ${{ matrix.so }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows y Linux importan aqui: el escaner trabaja con rutas.
+        so: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -e ".[web,dev]"
+
+      - name: Linter
+        run: ruff check .
+
+      - name: Pruebas
+        run: pytest -q
+
+      - name: Auto-analisis
+        # El analizador debe poder analizarse a si mismo sin fallar.
+        run: python -m classicalpy analizar . --formato json --salida informe.json
