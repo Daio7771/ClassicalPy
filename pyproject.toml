@@ -21,7 +21,8 @@ dependencies = []
 
 [project.optional-dependencies]
 web = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
-dev = ["pytest>=8.0", "ruff>=0.4"]
+# httpx2 lo exige starlette.testclient (usado por TestClient de FastAPI en los tests web).
+dev = ["pytest>=8.0", "ruff>=0.4", "httpx2>=2.0"]
 
 [project.scripts]
 classicalpy = "classicalpy.cli:main"
