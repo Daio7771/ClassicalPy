@@ -101,16 +101,48 @@ print(render(informe, "markdown"))
 
 ## ⚠️ Nota de seguridad
 
-El endpoint `/api/analizar` **lee rutas del sistema de ficheros del servidor**. Por
-eso el servidor escucha en `127.0.0.1` por defecto: ClassicalPy está pensado como
-herramienta local.
+ClassicalPy clona y lee repositorios arbitrarios de terceros: es un servicio
+diseñado para recibir entrada no confiable. Esto es lo que se ha endurecido y
+lo que sigue siendo responsabilidad de quien lo despliega.
 
-Si necesitas exponerlo en una red, activa el modo restringido, que rechaza las
-rutas locales y solo acepta URLs de repositorio:
+**Cubierto por el propio código:**
 
-```bash
-CLASSICALPY_SOLO_REPOS=1 classicalpy servir --host 0.0.0.0
-```
+- **Lectura de ficheros del servidor.** `/api/analizar` puede analizar rutas
+  locales del disco donde corre el proceso. Por eso escucha en `127.0.0.1` por
+  defecto, y `classicalpy servir` **se niega a arrancar** en una interfaz no
+  local si no se activa `CLASSICALPY_SOLO_REPOS=1` (o, si asumes el riesgo a
+  propósito, `--permitir-analisis-local-publico`):
+
+  ```bash
+  CLASSICALPY_SOLO_REPOS=1 classicalpy servir --host 0.0.0.0
+  ```
+
+- **Symlinks dentro de un repositorio ajeno.** Un repositorio público podría
+  incluir, por ejemplo, `README.md -> /etc/passwd` (o hacia un `.env`, una
+  clave o una credencial montada en el contenedor) para que su contenido
+  apareciera citado en el informe. El escáner **ignora cualquier symlink**
+  encontrado dentro del árbol analizado.
+
+- **SSRF y esquemas peligrosos en la URL del repositorio.** Solo se acepta
+  `https://`; se rechazan `ssh://`, `git://` y la sintaxis `usuario@host:ruta`
+  (evitan la clase de vulnerabilidad CVE-2017-1000117 y el protocolo `git://`
+  sin cifrar). Además se rechaza clonar contra `localhost` o cualquier IP
+  privada/de enlace local/loopback (`10.x`, `172.16-31.x`, `192.168.x`,
+  `127.x`, `169.254.x`), como primera barrera contra sondear la red interna
+  o los metadatos de la nube del propio servidor.
+
+**Limitaciones conocidas, no cubiertas:**
+
+- **DNS rebinding.** La comprobación de IP privada se hace sobre el host de
+  la URL antes de clonar; si ese nombre resuelve a una IP distinta (privada)
+  en el momento en que `git` hace la conexión real, esta capa no lo detecta.
+  Si despliegas esto en una red con servicios internos sensibles, añade
+  además un firewall de salida o un proxy que restrinja el tráfico saliente
+  del proceso.
+- **Tamaño del repositorio.** `--depth 1` limita el historial, no el árbol de
+  trabajo: un repositorio público con un fichero enorme puede agotar disco.
+  Hay un timeout de clonado (180s) que acota el peor caso, pero no un límite
+  de bytes explícito.
 
 ## Arquitectura del propio proyecto
 

@@ -107,6 +107,13 @@ class Scanner:
 
     def _inspect(self, path: Path) -> FileInfo | None:
         """Clasifica un fichero. Devuelve None si no aporta al analisis."""
+        if path.is_symlink():
+            # os.walk no sigue symlinks a directorios (followlinks=False), pero
+            # SI lista y abriria un symlink a un fichero individual. Un repositorio
+            # ajeno podria incluir p.ej. "README.md -> /etc/passwd" y su contenido
+            # se filtraria en el informe (ver analyze/domain.py:_read_readme). No
+            # se sigue jamas un enlace fuera del arbol que se pidio analizar.
+            return None
         try:
             size = path.stat().st_size
         except OSError:

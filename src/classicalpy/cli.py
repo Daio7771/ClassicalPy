@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -64,6 +65,16 @@ def build_parser() -> argparse.ArgumentParser:
     servir = sub.add_parser("servir", help="Levanta la interfaz web y la API.")
     servir.add_argument("--host", default="127.0.0.1", help="Interfaz de red donde escuchar.")
     servir.add_argument("--puerto", "-p", type=int, default=8000, help="Puerto HTTP.")
+    servir.add_argument(
+        "--permitir-analisis-local-publico",
+        action="store_true",
+        help=(
+            "Permite escuchar en una interfaz no local (--host distinto de 127.0.0.1) "
+            "SIN activar CLASSICALPY_SOLO_REPOS. Sin esto, cualquiera en la red podria "
+            "pedir el analisis de una ruta del disco del servidor. Usalo solo si "
+            "confias en todos los que puedan alcanzar esta interfaz de red."
+        ),
+    )
     servir.add_argument("--recargar", action="store_true", help="Recarga al cambiar el codigo.")
 
     return parser
@@ -91,7 +102,30 @@ def _cmd_analizar(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+_HOSTS_LOCALES = {"127.0.0.1", "localhost", "::1"}
+
+
 def _cmd_servir(args: argparse.Namespace) -> int:
+    solo_repos = os.getenv("CLASSICALPY_SOLO_REPOS", "").strip() in {"1", "true", "yes"}
+    if (
+        args.host not in _HOSTS_LOCALES
+        and not solo_repos
+        and not args.permitir_analisis_local_publico
+    ):
+        print(
+            f"Error: --host {args.host} expone la API fuera de esta maquina, pero el analisis "
+            "de rutas locales del servidor sigue activo.\n"
+            "Cualquiera que alcance esta direccion podria pedir el analisis de cualquier "
+            "carpeta legible por este proceso (lectura de ficheros del servidor).\n\n"
+            "Elige una de estas dos:\n"
+            "  CLASSICALPY_SOLO_REPOS=1 classicalpy servir --host " + args.host + "\n"
+            "      (recomendado: solo se aceptan URLs de repositorio Git)\n"
+            "  classicalpy servir --host " + args.host + " --permitir-analisis-local-publico\n"
+            "      (solo si confias en todo el que pueda alcanzar esta red)",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
+
     try:
         import uvicorn  # noqa: F401
     except ImportError:

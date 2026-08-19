@@ -270,3 +270,115 @@ def test_markdown_escapa_pipes_en_la_tabla(crear_proyecto):
     assert filas
     for fila in filas:
         assert fila.count("|") - fila.count("\\|") == 5, f"fila mal formada: {fila}"
+
+
+# ---------------------------------------------------------- seguridad: symlinks
+
+
+def test_symlink_a_fichero_externo_no_se_lee(tmp_path: Path):
+    """Un repositorio ajeno no debe poder exfiltrar ficheros del host via symlinks.
+
+    README.md -> /ruta/fuera/del/proyecto no debe aparecer en el inventario, y su
+    contenido (el del fichero externo) nunca debe llegar al informe.
+    """
+    secreto = tmp_path / "secreto.txt"
+    secreto.write_text("CONTENIDO_SECRETO_DEL_HOST\n", encoding="utf-8")
+
+    raiz = tmp_path / "repo-ajeno"
+    raiz.mkdir()
+    (raiz / "package.json").write_text('{"name": "x"}', encoding="utf-8")
+    try:
+        (raiz / "README.md").symlink_to(secreto)
+    except OSError:
+        pytest.skip("el entorno no permite crear symlinks (falta privilegio en Windows)")
+
+    informe = analyze_directory(raiz)
+    assert "CONTENIDO_SECRETO_DEL_HOST" not in render(informe, "markdown")
+    assert "CONTENIDO_SECRETO_DEL_HOST" not in render(informe, "json")
+    assert informe.stats.total_files == 1  # solo package.json: el symlink no se cuenta
+
+
+# --------------------------------------------------------- seguridad: fuentes
+
+
+def test_esquemas_peligrosos_no_se_tratan_como_repositorio():
+    from classicalpy.ingest.source import looks_like_repo_url
+
+    # ssh:// y git:// ya no se aceptan: van directos a un `ssh`/socket real
+    # sin que validemos el host antes.
+    assert not looks_like_repo_url("ssh://git@github.com/x/y.git")
+    assert not looks_like_repo_url("git://github.com/x/y.git")
+    assert not looks_like_repo_url("git@github.com:x/y.git")
+    # Un host que empiece por '-' inyectaria flags a `ssh` (CVE-2017-1000117).
+    assert not looks_like_repo_url("ssh://-oProxyCommand=touch%20pwned/x")
+
+
+def test_https_sigue_aceptado_como_repositorio():
+    from classicalpy.ingest.source import looks_like_repo_url
+
+    assert looks_like_repo_url("https://github.com/pallets/flask")
+    assert looks_like_repo_url("github.com/pallets/flask")
+
+
+def test_clonar_hacia_host_interno_se_rechaza():
+    from classicalpy.ingest.source import SourceError, resolve_source
+
+    for objetivo in (
+        "https://localhost/x.git",
+        "https://127.0.0.1/x.git",
+        "https://169.254.169.254/latest/meta-data/",  # metadatos de nube
+        "https://10.0.0.5/x.git",
+        "https://192.168.1.1/x.git",
+    ):
+        with pytest.raises(SourceError, match="no se permite|interna|local"):
+            resolve_source(objetivo)
+
+
+# ------------------------------------------------------------- seguridad: CLI
+
+
+def test_servir_rechaza_host_publico_sin_solo_repos(monkeypatch):
+    from classicalpy.cli import main
+
+    monkeypatch.delenv("CLASSICALPY_SOLO_REPOS", raising=False)
+    codigo = main(["servir", "--host", "0.0.0.0"])
+    assert codigo == 1
+
+
+def test_servir_permite_host_publico_con_solo_repos(monkeypatch):
+    """Con SOLO_REPOS activo, la puerta de seguridad debe dejar pasar sin bloquear."""
+    pytest.importorskip("uvicorn", reason="requiere el extra 'web'")
+    import uvicorn
+
+    from classicalpy.cli import main
+
+    monkeypatch.setenv("CLASSICALPY_SOLO_REPOS", "1")
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    assert main(["servir", "--host", "0.0.0.0"]) == 0
+
+
+def test_servir_permite_host_publico_con_override_explicito(monkeypatch):
+    """El flag explicito tambien debe dejar pasar la puerta de seguridad."""
+    pytest.importorskip("uvicorn", reason="requiere el extra 'web'")
+    import uvicorn
+
+    from classicalpy.cli import main
+
+    monkeypatch.delenv("CLASSICALPY_SOLO_REPOS", raising=False)
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    assert main(["servir", "--host", "0.0.0.0", "--permitir-analisis-local-publico"]) == 0
+
+
+def test_dominio_publico_con_prefijo_numerico_no_se_bloquea():
+    """Regresion: un dominio como '10.example.com' no es la IP 10.x.x.x.
+
+    El primer bloqueo por prefijo de texto bloqueaba por error cualquier
+    dominio que empezara con esos digitos, no solo direcciones IP reales.
+    """
+    from classicalpy.ingest.source import _es_host_prohibido
+
+    for host in ("10.example.com", "192.168.example.org", "172.16.mi-empresa.com"):
+        assert not _es_host_prohibido(host), f"{host} es un dominio, no deberia bloquearse"
+
+    for host in ("10.0.0.1", "192.168.1.1", "172.16.0.1", "127.0.0.1", "169.254.1.1", "localhost"):
+        assert _es_host_prohibido(host), f"{host} es una IP privada/local y debe bloquearse"

@@ -6,6 +6,7 @@ clon superficial (--depth 1) a un directorio temporal que se limpia al salir.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import shutil
 import subprocess
@@ -15,10 +16,41 @@ from pathlib import Path
 
 CLONE_TIMEOUT_SECONDS = 180
 
-# git@host:user/repo.git | https://host/user/repo(.git) | ssh://...
-_SSH_RE = re.compile(r"^[\w.+-]+@[\w.-]+:[\w./~-]+$")
-_URL_RE = re.compile(r"^(https?|git|ssh)://", re.IGNORECASE)
+# Solo HTTPS. Deliberadamente NO se aceptan ssh://, git:// ni la sintaxis
+# user@host:ruta:
+#   - ssh:// y user@host:ruta acaban en un `ssh` real, y un host que empiece
+#     por '-' puede inyectarle flags (CVE-2017-1000117). Git moderno ya lo
+#     bloquea, pero no dependemos de eso.
+#   - git:// no cifra ni autentica: es la via mas facil para SSRF contra
+#     infraestructura interna cuando esto corre como servicio publico.
+# Ademas, exigir que la URL empiece siempre por "https://" garantiza que
+# nunca pueda empezar por '-' y ser leida como una opcion de `git clone`.
+_URL_RE = re.compile(r"^https://", re.IGNORECASE)
 _SHORTHAND_RE = re.compile(r"^(github|gitlab)\.com/[\w.-]+/[\w.-]+/?$", re.IGNORECASE)
+# Host: primera barrera de defensa en profundidad contra SSRF hacia la propia
+# infraestructura cuando esto corre como servicio publico. No sustituye un
+# firewall de salida si se expone en una red no confiable, y no protege contra
+# DNS rebinding (el nombre puede resolver a una IP privada *despues* de esta
+# comprobacion, en el propio `git clone`).
+_HOST_RE = re.compile(r"^https://(?:[^@/]+@)?([^/:]+)", re.IGNORECASE)
+
+
+def _es_host_prohibido(host: str) -> bool:
+    """True si el host es 'localhost' o una IP privada/de enlace local/loopback.
+
+    Deliberadamente NO usa un regex de prefijos sobre el texto del host: eso
+    bloquearia por error dominios legitimos como '10.example.com'. Solo se
+    interpreta como IP -y por tanto se evalua contra los rangos privados- si
+    el host completo es una direccion IP valida.
+    """
+    host = host.strip("[]")
+    if host.lower() == "localhost":
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False  # es un nombre de dominio, no una IP: no es asunto nuestro
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
 
 
 class SourceError(RuntimeError):
@@ -51,12 +83,7 @@ class ResolvedSource:
 def looks_like_repo_url(spec: str) -> bool:
     """True si la cadena parece una URL de repositorio y no una ruta local."""
     spec = spec.strip()
-    return bool(
-        _URL_RE.match(spec)
-        or _SSH_RE.match(spec)
-        or _SHORTHAND_RE.match(spec)
-        or spec.endswith(".git")
-    )
+    return bool(_URL_RE.match(spec) or _SHORTHAND_RE.match(spec))
 
 
 def _repo_name(url: str) -> str:
@@ -91,12 +118,23 @@ def _clone(url: str) -> ResolvedSource:
     if _SHORTHAND_RE.match(url):
         url = f"https://{url.rstrip('/')}"
 
+    host_match = _HOST_RE.match(url)
+    host = host_match.group(1) if host_match else ""
+    if not host or _es_host_prohibido(host):
+        raise SourceError(
+            f"No se permite clonar desde '{host or url}': apunta a infraestructura "
+            "interna o local, no a un repositorio publico."
+        )
+
     temp_dir = tempfile.mkdtemp(prefix="classicalpy-")
     target = Path(temp_dir) / _repo_name(url)
 
     try:
         subprocess.run(
-            ["git", "clone", "--depth", "1", "--quiet", url, str(target)],
+            # "--" separa la URL de las opciones: aunque la validacion previa ya
+            # garantiza que empieza por "https://" y no puede leerse como flag,
+            # es defensa en profundidad barata.
+            ["git", "clone", "--depth", "1", "--quiet", "--", url, str(target)],
             check=True,
             capture_output=True,
             text=True,
